@@ -2,7 +2,7 @@
 Emily Ubbelohde
 
 ## Abstract
-The goal of this project was to use a series of API calls to establish a data pipeline. The data from the last API call in this pipeline was then fed to a Streamlit app for the user. The user inputs their origin and destination to the app, and the app will output weather for the road trip. 
+The goal of this project was to use a series of API calls to establish a data pipeline that would connect directons and weather data. The data from the last API call in this pipeline was then fed to a Streamlit app for the user. The user inputs their origin and destination to the app, and the app will output weather for the road trip. 
 
 
 ## Design
