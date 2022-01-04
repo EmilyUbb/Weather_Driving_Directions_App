@@ -24,7 +24,8 @@ The data pipeline was built using APIs from two main sources. Directions data wa
 - Streamlit for Production
 
 ## Summary
-- The app could be improved
+- Overall the app is working successfully!
+- The user interface of the app could be improved to include a map, an option to delay leaving time, and an option for stops. 
 
 ## Communication
  - Slides and Visuals Presented
