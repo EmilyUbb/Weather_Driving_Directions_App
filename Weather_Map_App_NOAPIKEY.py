@@ -1,17 +1,17 @@
 import streamlit as st
 import googlemaps
 import requests
-#import pymongo
-#from pymongo import MongoClient
 import json
 import pandas as pd
 import numpy as np
-#import geopy
+import geopy
 from geopy.geocoders import GoogleV3
 from pandas.io.json import json_normalize
 from datetime import *
 import re
 import gmaps
+from IPython.display import Image
+
 
 def direction_data(origin,destination):
 
@@ -24,7 +24,6 @@ def direction_data(origin,destination):
     headers = {}
 
     direct = requests.request("GET", url, headers=headers, data=payload)
-
     text = direct.text
     data = json.loads(text)
     direct_df = pd.json_normalize(data['routes'][0]['legs'][0]['steps'])
@@ -53,7 +52,6 @@ def direction_data(origin,destination):
     duration_int = duration_int[0]
     duration_int = int(duration_int)
     
-    
 
     for direct_df_row in direct_df.itertuples():
         latitudes.append(direct_df['end_location.lat'])
@@ -68,6 +66,7 @@ def direction_data(origin,destination):
     cities = []
     geolocator = GoogleV3(api_key='{API KEY}')
     
+    
     start = geolocator.reverse(start_location)
     cities.append(start[0])
 
@@ -76,38 +75,59 @@ def direction_data(origin,destination):
         c = geolocator.reverse(i)
         if c:
             cities.append(c[0]) 
-    end = geolocator.reverse(end_location)
-    cities.append(end[0])
-        
-    cities_df = []
-    for i in cities:
-        split_1 = i.split(',')
-        cities_df.append(split_1)
-    for i in cities_df:
-        for j in i:
-            if '+' in j:
-                split_2 = j.split('+')
-                for k in split_2:
-                    split_3 = k.split(' ')
-                cities_df.append(split_3)
-    cities_list = []
-    for i in cities_df:
-        j = i[1].replace(' ','')
-        if len(j) > 2:
-            cities_list.append(j)
-    cities_for_weather = set(cities_list)
-    print(cities_for_weather)
-
-    start_location = pd.DataFrame(start_location)
-    start_location[0] = "Latitude"
-    start_location[1] = "Longitude"
-    end_location = pd.DataFrame(end_location)
     
-    return(cities_for_weather, duration_int, start_location, end_location)
+    end = geolocator.reverse(end_location)
+    cities.append(end[-1])
+    
+    cities_df = []
+    cities_final = []
+    states_df = []
+    states_final = []
+    for i in cities:
+        city = []
+        split_1 = str(i).split(',')
+        split = split_1[1].strip()
+    
+        if len(split) > 2:
+            city = split
+            try:
+                state = split_1[2]
+                if(str(city)) not in cities_df:
+                    cities_df.append(str(city))
+                    states_df.append(str(state))
+            except IndexError:
+                print('end of cities')
+        else:
+            city = split_1[0]
+            state = split
+            if(str(city)) not in cities_df:
+                cities_df.append(str(city))
+                states_df.append(str(state))
+    for i in cities_df:
+        if '+' in str(i):
+            split_2 = str(i).split(' ',1)
+            final_split = split_2[1]
+            cities_final.append(final_split)
+        else:
+            cities_final.append(i)
+    for i in states_df:
+        if len(i) > 2:
+            split = str(i).split(' ',2)
+            final_split = split[1]
+            states_final.append(final_split)
+        else:
+            states_final.append(i)
+    return(cities_final, duration_int,states_final)
 
-def weather_data(cities_for_weather, duration_int):
-    cities_for_weather = list(cities_for_weather)
+def city_state(cities_list,states_list):
+    locations = tuple(zip(cities_list,states_list))
+    return locations
+
+
+def weather_data(cities_final, duration_int):
+    cities_for_weather = cities_final
     duration_int = duration_int
+
     
     df = pd.DataFrame(columns=["dt","weather","visibility","pop","dt_txt","main.temp","main.feels_like","main.temp_min",
            "main.temp_max","main.pressure","main.sea_level","main.grnd_level",
@@ -118,7 +138,6 @@ def weather_data(cities_for_weather, duration_int):
     idx = 0
     result= []
     for i in cities_for_weather:
-        i =  re.sub(r"(\w)([A-Z])", r"\1 \2", i)
         url = 'http://api.openweathermap.org/data/2.5/forecast?q='+i+'&units=imperial&appid={API KEY}'
         response2 = (requests.request("GET", url, headers=headers)).text
         data2 = json.loads(response2)
@@ -139,10 +158,11 @@ def weather_data(cities_for_weather, duration_int):
             .stack(0)
             .reset_index(level=1, drop=True))
     
-    
     main = df_weather.iloc[1::4]
     description = df_weather.iloc[2::4]
-    
+    icon = df_weather.iloc[3::4]
+
+
 
     main = pd.DataFrame(main)
     main = main.reset_index()
@@ -151,14 +171,19 @@ def weather_data(cities_for_weather, duration_int):
     description = pd.DataFrame(description)
     description = description.reset_index()
     description.drop(description.columns[0],axis=1,inplace=True)
+
+    icon = pd.DataFrame(icon)
+    icon = icon.reset_index()
+    icon.drop(icon.columns[0],axis=1,inplace=True)
     
 
     final_df = pd.DataFrame([])
     final_df = df[["name","visibility","dt_txt","main.temp","wind.speed","wind.gust","rain.3h"]]
-    
 
     final_df = final_df.merge(main, left_index=True, right_index=True, how='left')
     final_df = final_df.merge(description, left_index=True, right_index=True, how='left')
+    final_df = final_df.merge(icon, left_index=True, right_index=True, how='left')
+
 
 
     final_df.columns.values[0] = "Name"
@@ -170,9 +195,9 @@ def weather_data(cities_for_weather, duration_int):
     final_df.columns.values[6] = "Chance of Rain for 3 Hours"
     final_df.columns.values[7] = "Weather Category"
     final_df.columns.values[8] = "Weather Description"
-    final_df = pd.DataFrame(final_df)
+    final_df.columns.values[9] = "Icon"
 
-    
+    final_df['Icon'] = final_df['Icon'].astype(str) +'.png'
     
     def display_rows(final_df, duration_int):
         hr_blocks = ((duration_int)/3)
@@ -192,12 +217,20 @@ def weather_data(cities_for_weather, duration_int):
             
     
     weather_by_hr = pd.concat(display_rows(final_df,duration_int))
-    wind_data = weather_by_hr[["Name","Date + Time","Wind Speed","Wind Gust"]]
-    weather_description = weather_by_hr[["Name","Date + Time","Weather Category","Weather Description"]]
-    visibility_rain = weather_by_hr[["Name","Date + Time","Visibility","Chance of Rain for 3 Hours"]]
+    icon = weather_by_hr["Icon"].to_list()
+    cities = weather_by_hr["Name"].to_list()
+    time = weather_by_hr["Date + Time"].to_list()
+    time = [str(date) for date in time]
+    windgust = weather_by_hr["Wind Gust"].to_list()
+    windspeed = weather_by_hr["Wind Speed"].to_list()
+    visibility = weather_by_hr["Visibility"].to_list()
+    rain = weather_by_hr["Chance of Rain for 3 Hours"].to_list()
+    weathershort = weather_by_hr["Weather Category"].to_list()
+    weatherlong = weather_by_hr["Weather Description"].to_list()
     
-    return(weather_by_hr, wind_data, weather_description, visibility_rain)
+    return(icon,cities,time,weathershort,weatherlong,windgust,windspeed,visibility,rain)
 
+st.set_page_config(layout="wide")
 st.title('Showing Weather Conditions for a Road Trip')
 
 st.write('''
@@ -206,19 +239,73 @@ Origin = st.text_input('Origin: 123 Street Name, City, State', value="2930 T Str
 st.write('''
     # Trip Destination''')
 Destination = st.text_input('Destination: 123 Street Name, City, State', value="6349 Granite Dr NW, Rochester, MN")
+    
 output = direction_data(Origin,Destination)
 final_out = weather_data((output[0]),(output[1]))
+locations = city_state((output[0]),(output[2]))
 
-st.write('''
-    # All Weather Data''')
-st.dataframe(data=final_out[0], width=800, height=800)
+
+icons = final_out[0]
+date = final_out[2]
+weathershort = final_out[3]
+weatherlong = final_out[4]
+windgust = final_out[5]
+windspeed = final_out[6]
+visibility = final_out[7]
+rain = final_out[8]
+cities = final_out[1] 
 st.write('''
     # Weather Description''')
-st.dataframe(final_out[2])
-st.write('''
-    # Wind Data''')
-st.dataframe(final_out[1])
-st.write('''
-    # Visibility and Chance of Rain''')
-st.dataframe(final_out[3])
+col1, col2, col3, col4, col5 = st.columns([1,1,1,1,1])
+with col1:
+    col1.subheader("Date + Time")
+    for i in (date): 
+        col1.write(i)
+with col2:
+    col2.subheader("City")
+    for i in (cities): 
+        col2.write(i)
+with col3:
+    col3.subheader("Weather Category")
+    for i in (weathershort): 
+        col3.write(i)
+with col4:
+    col4.subheader("Icon")
+    for idx, img in enumerate(icons): 
+        col4.image(icons[idx], width = 25)
+        idx+=1
+with col5:
+    col5.subheader("Weather Description")
+    for i in (weatherlong): 
+        col5.write(i)
 
+st.write('''
+    # Weather Details''')
+col1, col2, col6, col7, col8, col9 = st.columns([1,1,1,1,1,1])
+with col1:
+    col1.subheader("Date + Time")
+    for i in (date): 
+        col1.write(i)
+with col2:
+    col2.subheader("City")
+    for i in (cities): 
+        col2.write(i)
+with col6:
+    col6.subheader("Wind Speed")
+    for i in (windspeed): 
+        col6.write(str(i)+' MPH')        
+with col7:
+    col7.subheader("Wind Gust")
+    for i in (windgust): 
+        col7.write(str(i)+' MPH')        
+with col8:
+    col8.subheader("Visibility")
+    for i in (visibility): 
+        col8.write(str(i))        
+with col9:
+    col9.subheader("Chance of Rain")
+    for i in (rain):
+        if str(i) == 'nan':
+            col9.write('0%')
+        else:
+            col9.write(str(i)+'%')
