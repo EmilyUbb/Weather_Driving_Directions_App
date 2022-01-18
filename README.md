@@ -1,4 +1,4 @@
-# Integrating Weather and Direction Data
+# Integrating Weather and Data for Driving Directions
 
 The goal of this project was to build an app that utilizes a data pipeline that can show the weather expected to be encountered during a road trip. The user inputs the origin and destination of their road trip. The data pipeline then returns all of the weather from now - arrival time for all of the cities encountered along the way. 
 
